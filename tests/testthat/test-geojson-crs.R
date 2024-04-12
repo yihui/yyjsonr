@@ -18,6 +18,7 @@ test_that("multiplication works", {
   # CRS matches how 'sf' reads it
   ref  <- readRDS(filename_epsg_3857_sf)
   geo1 <- read_geojson_file(filename_epsg_3857_geojson)
+  expect_equal(geo1, ref, ignore_attr = TRUE)
   expect_equal(geo1, ref)
   
   # Round trip write/read does not lose CRS info

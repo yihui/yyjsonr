@@ -24,9 +24,9 @@
 #define SF_GEOMETRY_COLLECTION 1 << 8
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// Make a CRS string to match what is done by: geojsonsf::geojson_sf()
+// Make a default CRS string to match what is done by default in: geojsonsf::geojson_sf()
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-SEXP make_crs(void) {
+SEXP make_default_crs(void) {
   SEXP crs_  = PROTECT(allocVector(VECSXP, 2));
   SEXP nms_ = PROTECT(allocVector(STRSXP, 2));
   SET_STRING_ELT(nms_, 0, mkChar("input"));
@@ -39,6 +39,43 @@ SEXP make_crs(void) {
   UNPROTECT(2);
   return crs_;
 }
+
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Make a CRS string 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+SEXP make_crs(yyjson_val *elem) {
+  
+  yyjson_val *crs = yyjson_obj_get(elem, "crs");
+  if (crs == NULL) {
+    return make_default_crs();
+  }
+  
+  // https://geojson.org/geojson-spec.html#coordinate-reference-system-objects
+  // "crs": {
+  //   "type": "name",
+  //   "properties": {
+  //     "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+  //   }
+  // }
+  yyjson_val *properties = yyjson_obj_get(crs, "properties");
+  if (properties == NULL) {
+    return make_default_crs();
+  }
+  yyjson_val *name = yyjson_obj_get(properties, "name");
+  if (name == NULL) {
+    return make_default_crs();
+  }
+  
+  const char *crs_name = yyjson_get_str(name);
+  
+  Rprintf("\nmake_crs(): %s\n", crs_name);
+  
+  return make_default_crs();
+}
+
+
+
 
 #define SF_TYPE  1  // data.frame
 #define SFC_TYPE 2  // list
@@ -834,7 +871,7 @@ SEXP parse_feature(yyjson_val *obj, geo_parse_options *opt) {
   // Set attributes on geometry 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   setAttrib(geom_col_, mkString("n_empty")  , ScalarInteger(0));
-  setAttrib(geom_col_, mkString("crs")      , make_crs());
+  setAttrib(geom_col_, mkString("crs")      , make_default_crs());
   
   SEXP geom_class_ = PROTECT(allocVector(STRSXP, 2)); nprotect++;
   
@@ -1081,7 +1118,7 @@ SEXP parse_feature_collection_geometry(yyjson_val *features, geo_parse_options *
   
   
   setAttrib(geom_col_, mkString("n_empty")  , ScalarInteger(0));
-  setAttrib(geom_col_, mkString("crs")      , make_crs());
+  setAttrib(geom_col_, mkString("crs")      , make_default_crs());
   
   SET_STRING_ELT(geom_class_, 1, mkChar("sfc"));
   setAttrib(geom_col_, R_ClassSymbol, geom_class_);
@@ -1127,6 +1164,11 @@ SEXP parse_feature_collection(yyjson_val *obj, geo_parse_options *opt) {
   if (!yyjson_is_arr(features)) {
     error("Expecting FeatureCollection::features to be an array. Got %s", yyjson_get_type_desc(features));
   }
+  
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  // Parse the CRS
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  SEXP crs = make_crs(obj);
   
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   // Parse the geometry
@@ -1332,7 +1374,7 @@ SEXP promote_bare_geometry_to_list(SEXP geom_, yyjson_val *val, geo_parse_option
   // Set attributes on geometry 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   setAttrib(geom_col_, mkString("n_empty")  , ScalarInteger(0));
-  setAttrib(geom_col_, mkString("crs")      , make_crs());
+  setAttrib(geom_col_, mkString("crs")      , make_default_crs());
   
   setAttrib(geom_col_, mkString("precision"), ScalarReal(0));
   setAttrib(geom_col_, mkString("bbox"), make_bbox(opt));
